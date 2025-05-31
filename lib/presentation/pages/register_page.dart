@@ -65,7 +65,6 @@ class _RegisterPageState extends State<RegisterPage> {
         status: selectedCargo == 2 ? 'admin' : 'user',
         cpf: cpfController.text.replaceAll(RegExp(r'[^\d]'), ''),
       );
-      print(usuario.cargo);
 
       if (_foto != null) {
         // Handle photo upload here

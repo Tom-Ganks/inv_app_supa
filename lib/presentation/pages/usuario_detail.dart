@@ -190,7 +190,7 @@ class UsuarioDetailPageState extends State<UsuarioDetailPage> {
     _enderecoController = TextEditingController(text: widget.usuario.endereco);
     _cpfController = TextEditingController(text: widget.usuario.cpf ?? '');
     _dataNascimentoController = TextEditingController(
-      text: widget.usuario.dataNascimento ?? '',
+      text: widget.usuario.data_nascimento ?? '',
     );
   }
 
@@ -344,7 +344,7 @@ class UsuarioDetailPageState extends State<UsuarioDetailPage> {
         widget.usuario.endereco = _enderecoController.text;
         widget.usuario.cargo = cargoResult.id_cargos;
         widget.usuario.cpf = _cpfController.text;
-        widget.usuario.dataNascimento = _dataNascimentoController.text;
+        widget.usuario.data_nascimento = _dataNascimentoController.text;
 
         await UsuarioRepository().update(widget.usuario);
         if (mounted) {
@@ -608,7 +608,7 @@ class UsuarioDetailPageState extends State<UsuarioDetailPage> {
                         _buildInfoCard('CPF', widget.usuario.cpf),
                         _buildInfoCard(
                           'Data de Nascimento',
-                          widget.usuario.dataNascimento,
+                          widget.usuario.data_nascimento,
                         ),
                       ],
                     ),

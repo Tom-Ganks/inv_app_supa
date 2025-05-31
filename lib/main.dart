@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'core/database_helper.dart';
+import 'core/supa_helper.dart';
 import 'presentation/pages/dashboard.dart';
 import 'presentation/pages/login_page.dart';
 import 'presentation/pages/notificacoes_page.dart';

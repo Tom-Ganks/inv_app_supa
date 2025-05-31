@@ -15,12 +15,10 @@ class MovimentacaoRepository {
 
   Future<List<Movimentacao>> fetchAll() async {
     final response = await _client
-        .from('movimentacoes')
+        .from('movimentacao')
         .select()
         .order('data_saida', ascending: false);
-    return (response as List)
-        .map((json) => Movimentacao.fromMap(json))
-        .toList();
+    return response.map((json) => Movimentacao.fromMap(json)).toList();
   }
 
   Future<List<Movimentacao>> fetchByTurma(int turmaId) async {
@@ -56,5 +54,14 @@ class MovimentacaoRepository {
   Future<int> delete(int id) async {
     await _client.from('movimentacoes').delete().eq('id_movimentacao', id);
     return id;
+  }
+
+  Future<List<Movimentacao>> fetchByProduto(int produtoId) async {
+    final response = await _client
+        .from('movimentacao')
+        .select()
+        .eq('id_produtos', produtoId)
+        .order('data_saida', ascending: false);
+    return response.map((json) => Movimentacao.fromMap(json)).toList();
   }
 }

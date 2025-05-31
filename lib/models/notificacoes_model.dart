@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 class Notificacao {
   int? id;
   String solicitante_nome;
@@ -56,6 +58,8 @@ class Notificacao {
       quantidade_aprovada: map['quantidade_aprovada'],
     );
   }
+
+  get id_notificacao => null;
 
   String getStatusDisplay() {
     switch (status) {

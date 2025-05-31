@@ -95,7 +95,7 @@ class _ProgressoPageState extends State<ProgressoPage> {
     if (widget.currentUser.status != 'admin') return;
 
     final produto =
-        await ProdutoRepository().fetchByName(solicitacao.produtoNome);
+        await ProdutoRepository().fetchByName(solicitacao.produto_nome);
     if (produto == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -107,7 +107,7 @@ class _ProgressoPageState extends State<ProgressoPage> {
 
     String selectedStatus = solicitacao.status;
     final quantidadeController = TextEditingController(
-      text: solicitacao.quantidadeAprovada?.toString() ?? '',
+      text: solicitacao.quantidade_aprovada?.toString() ?? '',
     );
     final observacaoController = TextEditingController(
       text: solicitacao.observacao,
@@ -124,7 +124,7 @@ class _ProgressoPageState extends State<ProgressoPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Produto: ${solicitacao.produtoNome}',
+                  'Produto: ${solicitacao.produto_nome}',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 Text('Quantidade solicitada: ${solicitacao.quantidade}'),
@@ -204,7 +204,7 @@ class _ProgressoPageState extends State<ProgressoPage> {
     if (result != null) {
       try {
         await _repository.updateStatus(
-          solicitacao.idNotificacao!,
+          solicitacao.id_notificacao!,
           status: result['status'],
           observacao: result['observacao'],
           quantidadeAprovada: result['quantidadeAprovada'],
@@ -362,7 +362,7 @@ class _ProgressoPageState extends State<ProgressoPage> {
                                                         children: [
                                                           Text(
                                                             solicitacao
-                                                                .produtoNome,
+                                                                .produto_nome,
                                                             style:
                                                                 const TextStyle(
                                                               fontSize: 18,
@@ -375,7 +375,7 @@ class _ProgressoPageState extends State<ProgressoPage> {
                                                                   .status ==
                                                               'admin')
                                                             Text(
-                                                              'Solicitante: ${solicitacao.solicitanteNome}',
+                                                              'Solicitante: ${solicitacao.solicitante_nome}',
                                                               style: TextStyle(
                                                                 color: Colors
                                                                     .grey[600],
@@ -422,10 +422,10 @@ class _ProgressoPageState extends State<ProgressoPage> {
                                                 if (solicitacao.status ==
                                                         'parcial' &&
                                                     solicitacao
-                                                            .quantidadeAprovada !=
+                                                            .quantidade_aprovada !=
                                                         null)
                                                   Text(
-                                                    'Quantidade aprovada: ${solicitacao.quantidadeAprovada}',
+                                                    'Quantidade aprovada: ${solicitacao.quantidade_aprovada}',
                                                     style: TextStyle(
                                                       fontSize: 16,
                                                       color: Colors.orange[700],
@@ -435,7 +435,7 @@ class _ProgressoPageState extends State<ProgressoPage> {
                                                   ),
                                                 const SizedBox(height: 4),
                                                 Text(
-                                                  'Data: ${DateFormat('dd/MM/yyyy HH:mm').format(solicitacao.dataSolicitacao)}',
+                                                  'Data: ${DateFormat('dd/MM/yyyy HH:mm').format(solicitacao.data_solicitacao)}',
                                                   style: TextStyle(
                                                     fontSize: 14,
                                                     color: Colors.grey[500],

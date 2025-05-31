@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/movimentacao_model.dart';
 import '../../models/produto_model.dart';
 import '../../models/usuario_model.dart';
@@ -23,6 +24,7 @@ class MovimentacaoPage extends StatefulWidget {
 class _MovimentacaoPageState extends State<MovimentacaoPage> {
   final MovimentacaoRepository _repository = MovimentacaoRepository();
   final ProdutoRepository produtoRepository = ProdutoRepository();
+  final SupabaseClient _client = Supabase.instance.client;
   List<Movimentacao> movimentacoes = [];
   bool isLoading = true;
   final TextEditingController _quantidadeController = TextEditingController();
@@ -76,7 +78,6 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
       return;
     }
 
-    // For saída, check if there's enough stock
     if (_operationType == 'saida' && quantidade > widget.produto.saldo) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -86,43 +87,39 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
     }
 
     try {
-      final db = await DatabaseHelper().database;
-      await db.transaction((txn) async {
-        // Update produto
-        final novoSaldo = _operationType == 'entrada'
-            ? widget.produto.saldo + quantidade
-            : widget.produto.saldo - quantidade;
+      // Calculate new values
+      final novoSaldo = _operationType == 'entrada'
+          ? widget.produto.saldo + quantidade
+          : widget.produto.saldo - quantidade;
 
-        final novaEntrada = _operationType == 'entrada'
-            ? widget.produto.entrada + quantidade
-            : widget.produto.entrada;
+      final novaEntrada = _operationType == 'entrada'
+          ? widget.produto.entrada + quantidade
+          : widget.produto.entrada;
 
-        final novaSaida = _operationType == 'saida'
-            ? widget.produto.saida + quantidade
-            : widget.produto.saida;
+      final novaSaida = _operationType == 'saida'
+          ? widget.produto.saida + quantidade
+          : widget.produto.saida;
 
-        await txn.update(
-          'produtos',
-          {
-            'saldo': novoSaldo,
-            'entrada': novaEntrada,
-            'saida': novaSaida,
-          },
-          where: 'id_produtos = ?',
-          whereArgs: [widget.produto.id_produtos],
-        );
+      // Update produto using Supabase
+      await _client.from('produtos').update({
+        'saldo': novoSaldo,
+        'entrada': novaEntrada,
+        'saida': novaSaida,
+      }).eq('id_produtos', widget.produto.id_produtos as Object);
 
-        // Create movimentacao record
-        final movimentacao = {
-          'id_produtos': widget.produto.id_produtos,
-          'id_usuarios': widget.currentUser.id_usuarios,
-          'quantidade': quantidade,
-          'data_saida': DateTime.now().toIso8601String(),
-          'tipo': _operationType,
-        };
-
-        await txn.insert('movimentacao', movimentacao);
+      // Create movimentacao record using Supabase
+      await _client.from('movimentacao').insert({
+        'id_produtos': widget.produto.id_produtos,
+        'id_usuarios': widget.currentUser.id_usuarios,
+        'quantidade': quantidade,
+        'data_saida': DateTime.now().toIso8601String(),
+        'tipo': _operationType,
       });
+
+      // Update local produto object
+      widget.produto.saldo = novoSaldo;
+      widget.produto.entrada = novaEntrada;
+      widget.produto.saida = novaSaida;
 
       _quantidadeController.clear();
       await _loadMovimentacoes();
@@ -149,6 +146,7 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Rest of the build method remains the same
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
@@ -329,8 +327,8 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
                                         ),
                                         child: ListTile(
                                           leading: CircleAvatar(
-                                            backgroundColor: Colors.blue
-                                                .withValues(alpha: 0.1),
+                                            backgroundColor:
+                                                Colors.blue.withOpacity(0.1),
                                             child: Icon(
                                               movimentacao.tipo == 'saida'
                                                   ? Icons.remove

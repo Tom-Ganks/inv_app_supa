@@ -10,6 +10,7 @@ class Usuario {
   int? turma;
   String cpf;
   String? foto;
+  String? data_nascimento;
 
   Usuario({
     this.id_usuarios,
@@ -23,11 +24,11 @@ class Usuario {
     this.turma,
     required this.cpf,
     this.foto,
+    this.data_nascimento,
   });
 
   Map<String, dynamic> toMap() {
-    return {
-      'id_usuarios': id_usuarios,
+    final map = {
       'nome': nome,
       'telefone': telefone,
       'email': email,
@@ -38,7 +39,15 @@ class Usuario {
       'turma': turma,
       'cpf': cpf,
       'foto': foto,
+      'data_nascimento': data_nascimento,
     };
+
+    // Only include id_usuarios if it's not null
+    if (id_usuarios != null) {
+      map['id_usuarios'] = id_usuarios;
+    }
+
+    return map;
   }
 
   factory Usuario.fromMap(Map<String, dynamic> map) {
@@ -54,6 +63,7 @@ class Usuario {
       turma: map['turma'],
       cpf: map['cpf'] ?? '',
       foto: map['foto'],
+      data_nascimento: map['data_nascimento'],
     );
   }
 }
