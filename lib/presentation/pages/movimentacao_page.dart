@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:inventory_app/models/produto_model.dart';
+import '../../core/supa_helper.dart';
 import '../../models/movimentacao_model.dart';
-import '../../models/produto_model.dart';
 import '../../models/usuario_model.dart';
 import '../../repositories/movimentacao_repository.dart';
 import '../../repositories/produto_repository.dart';
+import 'dashboard.dart';
 
 class MovimentacaoPage extends StatefulWidget {
   final Usuario currentUser;
@@ -14,7 +15,7 @@ class MovimentacaoPage extends StatefulWidget {
   const MovimentacaoPage({
     super.key,
     required this.currentUser,
-    required this.produto,
+    required this.produto, // Adicione este parâmetro
   });
 
   @override
@@ -23,12 +24,10 @@ class MovimentacaoPage extends StatefulWidget {
 
 class _MovimentacaoPageState extends State<MovimentacaoPage> {
   final MovimentacaoRepository _repository = MovimentacaoRepository();
-  final ProdutoRepository produtoRepository = ProdutoRepository();
-  final SupabaseClient _client = Supabase.instance.client;
   List<Movimentacao> movimentacoes = [];
   bool isLoading = true;
-  final TextEditingController _quantidadeController = TextEditingController();
-  String _operationType = 'entrada';
+  String tipoMovimentacao = 'saida'; // Default to saída
+  final TextEditingController quantidadeController = TextEditingController();
 
   @override
   void initState() {
@@ -36,117 +35,140 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
     _loadMovimentacoes();
   }
 
-  @override
-  void dispose() {
-    _quantidadeController.dispose();
-    super.dispose();
-  }
-
   Future<void> _loadMovimentacoes() async {
-    setState(() => isLoading = true);
     try {
-      final List<Movimentacao> result = await _repository.fetchAll();
+      final List<Movimentacao> userMovimentacoes;
+      if (widget.currentUser.status == 'admin') {
+        userMovimentacoes = await _repository.fetchAll();
+      } else {
+        userMovimentacoes =
+            await _repository.fetchByUsuario(widget.currentUser.id_usuarios!);
+      }
+
       setState(() {
-        movimentacoes = result
-            .where((m) => m.id_produtos == widget.produto.id_produtos)
-            .toList();
+        movimentacoes = userMovimentacoes;
         isLoading = false;
       });
     } catch (e) {
-      setState(() => isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao carregar movimentações: $e')),
-        );
-      }
+      debugPrint('Error loading movimentações: $e');
+      setState(() {
+        isLoading = false;
+      });
     }
   }
 
   Future<void> _registrarMovimentacao() async {
-    if (_quantidadeController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, insira uma quantidade')),
-      );
-      return;
-    }
-
-    final quantidade = int.tryParse(_quantidadeController.text);
-    if (quantidade == null || quantidade <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Quantidade inválida')),
-      );
-      return;
-    }
-
-    if (_operationType == 'saida' && quantidade > widget.produto.saldo) {
+    if (quantidadeController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Quantidade maior que o saldo disponível')),
+          content: Text('Por favor, insira uma quantidade'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final quantidade = int.tryParse(quantidadeController.text);
+    if (quantidade! <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor, insira uma quantidade válida'),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
 
     try {
-      // Calculate new values
-      final novoSaldo = _operationType == 'entrada'
-          ? widget.produto.saldo + quantidade
-          : widget.produto.saldo - quantidade;
+      final movimentacao = Movimentacao(
+        id_produtos: widget.produto.id_produtos!, // Use o ID do produto clicado
+        id_turma: widget.currentUser.turma,
+        id_usuarios: widget.currentUser.id_usuarios!,
+        data_saida: DateTime.now(),
+        quantidade: quantidade,
+        tipo: tipoMovimentacao,
+        observacao: '',
+      );
 
-      final novaEntrada = _operationType == 'entrada'
-          ? widget.produto.entrada + quantidade
-          : widget.produto.entrada;
+      await _repository.insert(movimentacao);
 
-      final novaSaida = _operationType == 'saida'
-          ? widget.produto.saida + quantidade
-          : widget.produto.saida;
+      final produtoRepository = ProdutoRepository();
+      await produtoRepository.updateSaldo(
+        widget.produto.id_produtos!,
+        quantidade,
+        tipoMovimentacao,
+      );
 
-      // Update produto using Supabase
-      await _client.from('produtos').update({
-        'saldo': novoSaldo,
-        'entrada': novaEntrada,
-        'saida': novaSaida,
-      }).eq('id_produtos', widget.produto.id_produtos as Object);
-
-      // Create movimentacao record using Supabase
-      await _client.from('movimentacao').insert({
-        'id_produtos': widget.produto.id_produtos,
-        'id_usuarios': widget.currentUser.id_usuarios,
-        'quantidade': quantidade,
-        'data_saida': DateTime.now().toIso8601String(),
-        'tipo': _operationType,
-      });
-
-      // Update local produto object
-      widget.produto.saldo = novoSaldo;
-      widget.produto.entrada = novaEntrada;
-      widget.produto.saida = novaSaida;
-
-      _quantidadeController.clear();
+      quantidadeController.clear();
       await _loadMovimentacoes();
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Movimentação registrada com sucesso'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Movimentação registrada e saldo atualizado!'),
+          backgroundColor: Colors.green,
+        ),
+      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao registrar movimentação: $e'),
-            backgroundColor: Colors.red,
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao registrar movimentação: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _clearAllMovimentacoes() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Limpar Movimentações'),
+        content:
+            const Text('Tem certeza que deseja limpar todas as movimentações?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
           ),
-        );
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Limpar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        // Correção: Use 'movimentacao' em vez de 'movimentacoes'
+        await SupabaseHelper.client
+            .from('movimentacao') // Nome correto da tabela
+            .delete()
+            .neq('id_movimentacao', 0);
+
+        await _loadMovimentacoes();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Todas as movimentações foram limpas'),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erro ao limpar movimentações: $e')),
+          );
+        }
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Rest of the build method remains the same
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
@@ -165,35 +187,116 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
                   children: [
                     IconButton(
                       icon: const Icon(Icons.arrow_back, color: Colors.white),
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => DashboardPage(
+                              currentUser: widget.currentUser,
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                    Expanded(
-                      child: Column(
-                        children: [
-                          Text(
-                            widget.produto.nome,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Saldo atual: ${widget.produto.saldo}',
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
+                    const Expanded(
+                      child: Text(
+                        'Movimentações',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
                     ),
-                    const SizedBox(width: 48),
+                    if (widget.currentUser.status == 'admin')
+                      IconButton(
+                        icon:
+                            const Icon(Icons.delete_sweep, color: Colors.white),
+                        onPressed: _clearAllMovimentacoes,
+                        tooltip: 'Limpar todas as movimentações',
+                      )
+                    else
+                      const SizedBox(width: 48),
                   ],
                 ),
               ),
+              Container(
+                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Nova Movimentação',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: RadioListTile<String>(
+                            title: const Text('Entrada'),
+                            value: 'entrada',
+                            groupValue: tipoMovimentacao,
+                            onChanged: (value) {
+                              setState(() {
+                                tipoMovimentacao = value!;
+                              });
+                            },
+                          ),
+                        ),
+                        Expanded(
+                          child: RadioListTile<String>(
+                            title: const Text('Saída'),
+                            value: 'saida',
+                            groupValue: tipoMovimentacao,
+                            onChanged: (value) {
+                              setState(() {
+                                tipoMovimentacao = value!;
+                              });
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: quantidadeController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: 'Quantidade',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _registrarMovimentacao,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text('Registrar Movimentação'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
               Expanded(
                 child: Container(
                   decoration: const BoxDecoration(
@@ -203,167 +306,91 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
                       topRight: Radius.circular(30),
                     ),
                   ),
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Card(
-                          elevation: 4,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Nova Movimentação',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
+                  child: isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : movimentacoes.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.inbox_rounded,
+                                    size: 64,
+                                    color: Colors.grey[400],
                                   ),
-                                ),
-                                const SizedBox(height: 16),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: RadioListTile<String>(
-                                        title: const Text('Entrada'),
-                                        value: 'entrada',
-                                        groupValue: _operationType,
-                                        onChanged: (value) {
-                                          setState(
-                                              () => _operationType = value!);
-                                        },
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: RadioListTile<String>(
-                                        title: const Text('Saída'),
-                                        value: 'saida',
-                                        groupValue: _operationType,
-                                        onChanged: (value) {
-                                          setState(
-                                              () => _operationType = value!);
-                                        },
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                TextField(
-                                  controller: _quantidadeController,
-                                  decoration: InputDecoration(
-                                    labelText: 'Quantidade',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    prefixIcon: const Icon(Icons.inventory),
-                                  ),
-                                  keyboardType: TextInputType.number,
-                                ),
-                                const SizedBox(height: 16),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton(
-                                    onPressed: _registrarMovimentacao,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.blue,
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 16,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                    ),
-                                    child: const Text(
-                                      'Registrar Movimentação',
-                                      style: TextStyle(fontSize: 16),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Nenhuma movimentação encontrada',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      color: Colors.grey[600],
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: isLoading
-                            ? const Center(child: CircularProgressIndicator())
-                            : movimentacoes.isEmpty
-                                ? Center(
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
+                                ],
+                              ),
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.all(16),
+                              itemCount: movimentacoes.length,
+                              itemBuilder: (context, index) {
+                                final movimentacao = movimentacoes[index];
+                                return Card(
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  elevation: 2,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(15),
+                                  ),
+                                  child: ListTile(
+                                    contentPadding: const EdgeInsets.all(16),
+                                    leading: CircleAvatar(
+                                      backgroundColor:
+                                          movimentacao.tipo == 'entrada'
+                                              ? Colors.green.withOpacity(0.1)
+                                              : Colors.red.withOpacity(0.1),
+                                      child: Icon(
+                                        movimentacao.tipo == 'entrada'
+                                            ? Icons.add
+                                            : Icons.remove,
+                                        color: movimentacao.tipo == 'entrada'
+                                            ? Colors.green
+                                            : Colors.red,
+                                      ),
+                                    ),
+                                    title: Text(
+                                      'Movimentação #${movimentacao.id_movimentacao}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    subtitle: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        Icon(
-                                          Icons.history,
-                                          size: 64,
-                                          color: Colors.grey[400],
-                                        ),
-                                        const SizedBox(height: 16),
+                                        const SizedBox(height: 8),
                                         Text(
-                                          'Nenhuma movimentação registrada',
+                                          'Data: ${DateFormat('dd/MM/yyyy HH:mm').format(movimentacao.data_saida ?? DateTime.now())}',
                                           style: TextStyle(
-                                            fontSize: 18,
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                        Text(
+                                          'Quantidade: ${movimentacao.quantidade}',
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                        Text(
+                                          'Tipo: ${movimentacao.tipo}',
+                                          style: TextStyle(
                                             color: Colors.grey[600],
                                           ),
                                         ),
                                       ],
                                     ),
-                                  )
-                                : ListView.builder(
-                                    padding: const EdgeInsets.all(16),
-                                    itemCount: movimentacoes.length,
-                                    itemBuilder: (context, index) {
-                                      final movimentacao = movimentacoes[index];
-                                      return Card(
-                                        margin:
-                                            const EdgeInsets.only(bottom: 8),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                        ),
-                                        child: ListTile(
-                                          leading: CircleAvatar(
-                                            backgroundColor:
-                                                Colors.blue.withOpacity(0.1),
-                                            child: Icon(
-                                              movimentacao.tipo == 'saida'
-                                                  ? Icons.remove
-                                                  : Icons.add,
-                                              color: Colors.blue,
-                                            ),
-                                          ),
-                                          title: Text(
-                                            movimentacao.tipo == 'saida'
-                                                ? 'Saída'
-                                                : 'Entrada',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          subtitle: Text(
-                                            DateFormat('dd/MM/yyyy HH:mm')
-                                                .format(
-                                              movimentacao.data_saida ??
-                                                  DateTime.now(),
-                                            ),
-                                          ),
-                                          trailing: Text(
-                                            'Qtd: ${movimentacao.quantidade}',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                    },
                                   ),
-                      ),
-                    ],
-                  ),
+                                );
+                              },
+                            ),
                 ),
               ),
             ],

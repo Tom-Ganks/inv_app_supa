@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class Notificacao {
-  int? id;
+  int? id_notificacao;
   String solicitante_nome;
   String solicitante_cargo;
   String produto_nome;
@@ -14,7 +14,7 @@ class Notificacao {
   int? quantidade_aprovada;
 
   Notificacao({
-    this.id,
+    this.id_notificacao,
     required this.solicitante_nome,
     required this.solicitante_cargo,
     required this.produto_nome,
@@ -28,38 +28,42 @@ class Notificacao {
   });
 
   Map<String, dynamic> toMap() {
-    return {
-      'id': id,
+    final map = {
       'solicitante_nome': solicitante_nome,
       'solicitante_cargo': solicitante_cargo,
       'produto_nome': produto_nome,
       'quantidade': quantidade,
       'data_solicitacao': data_solicitacao.toIso8601String(),
-      'lida': lida ? 1 : 0,
+      'lida': lida,
       'id_movimentacao': id_movimentacao,
       'observacao': observacao,
       'status': status,
       'quantidade_aprovada': quantidade_aprovada,
     };
+
+    // Só inclui o ID se ele for diferente de null
+    if (id_notificacao != null) {
+      map['id_notificacao'] = id_notificacao;
+    }
+
+    return map;
   }
 
   factory Notificacao.fromMap(Map<String, dynamic> map) {
     return Notificacao(
-      id: map['id'],
+      id_notificacao: map['id_notificacao'],
       solicitante_nome: map['solicitante_nome'],
       solicitante_cargo: map['solicitante_cargo'],
       produto_nome: map['produto_nome'],
       quantidade: map['quantidade'],
       data_solicitacao: DateTime.parse(map['data_solicitacao']),
-      lida: map['lida'] == 1,
+      lida: map['lida'] ?? false,
       id_movimentacao: map['id_movimentacao'],
       observacao: map['observacao'],
       status: map['status'] ?? 'pendente',
       quantidade_aprovada: map['quantidade_aprovada'],
     );
   }
-
-  get id_notificacao => null;
 
   String getStatusDisplay() {
     switch (status) {

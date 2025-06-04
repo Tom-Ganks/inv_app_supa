@@ -203,13 +203,28 @@ class _ProgressoPageState extends State<ProgressoPage> {
 
     if (result != null) {
       try {
+        final int novaQuantidade = result['status'] == 'aprovado'
+            ? solicitacao.quantidade
+            : (result['quantidadeAprovada'] ?? 0);
+
         await _repository.updateStatus(
           solicitacao.id_notificacao!,
           status: result['status'],
           observacao: result['observacao'],
-          quantidadeAprovada: result['quantidadeAprovada'],
+          quantidadeAprovada: novaQuantidade,
         );
+
+        if (result['status'] == 'aprovado' || result['status'] == 'parcial') {
+          final int novoSaldo = produto.saldo - novaQuantidade;
+          await ProdutoRepository().updateSaldo(
+            produto.id_produtos!,
+            novoSaldo,
+            'saida',
+          );
+        }
+
         await _loadSolicitacoes();
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -218,7 +233,8 @@ class _ProgressoPageState extends State<ProgressoPage> {
             ),
           );
         }
-      } catch (e) {
+      } catch (e, stackTrace) {
+        debugPrint('Erro ao atualizar: $e\n$stackTrace');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

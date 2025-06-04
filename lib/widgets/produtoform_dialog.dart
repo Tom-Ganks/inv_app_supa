@@ -13,22 +13,29 @@ class ProdutoFormDialog extends StatefulWidget {
 class _ProdutoFormDialogState extends State<ProdutoFormDialog> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _nomeController = TextEditingController();
-  final TextEditingController _medidaController = TextEditingController();
   final TextEditingController _localController = TextEditingController();
   final TextEditingController _codigoController = TextEditingController();
   DateTime? _dataEntrada;
+  // ignore: unused_field
+  int _medidaSelecionada = 1;
 
   @override
   void initState() {
     super.initState();
     if (widget.produto != null) {
       _nomeController.text = widget.produto!.nome;
-      _medidaController.text = widget.produto!.medida.toString();
+      _medidaSelecionada = widget.produto!.medida;
       _localController.text = widget.produto!.local ?? '';
       _codigoController.text = widget.produto!.codigo ?? '';
       _dataEntrada = widget.produto!.data_entrada;
     }
   }
+
+  final List<Map<String, dynamic>> medidas = [
+    {'id': 1, 'nome': 'Unidade'},
+    {'id': 2, 'nome': 'Caixa'},
+    {'id': 3, 'nome': 'Litro'},
+  ];
 
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -66,13 +73,23 @@ class _ProdutoFormDialogState extends State<ProdutoFormDialog> {
                   return null;
                 },
               ),
-              TextFormField(
-                controller: _medidaController,
+              DropdownButtonFormField<int>(
+                value: widget.produto?.medida ?? 1,
                 decoration: const InputDecoration(labelText: 'Medida'),
-                keyboardType: TextInputType.number,
+                items: medidas.map((medida) {
+                  return DropdownMenuItem<int>(
+                    value: medida['id'],
+                    child: Text(medida['nome']),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _medidaSelecionada = value!;
+                  });
+                },
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Insira a medida';
+                  if (value == null) {
+                    return 'Selecione uma medida';
                   }
                   return null;
                 },
@@ -110,7 +127,7 @@ class _ProdutoFormDialogState extends State<ProdutoFormDialog> {
               final produto = Produto(
                 id_produtos: widget.produto?.id_produtos,
                 nome: _nomeController.text,
-                medida: int.tryParse(_medidaController.text) ?? 0,
+                medida: _medidaSelecionada,
                 local: _localController.text,
                 entrada:
                     0, // Definido como 0 pois será gerenciado na movimentação

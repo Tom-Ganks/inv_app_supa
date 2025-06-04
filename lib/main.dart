@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'core/supa_helper.dart';
 import 'presentation/pages/dashboard.dart';
 import 'presentation/pages/login_page.dart';
-import 'presentation/pages/notificacoes_page.dart';
 import 'presentation/pages/produto_page.dart';
 import 'presentation/pages/progresso_page.dart';
 import 'presentation/pages/register_page.dart';
@@ -59,12 +58,6 @@ class MyApp extends StatelessWidget {
               final Usuario currentUser = settings.arguments as Usuario;
               return MaterialPageRoute(
                 builder: (context) => UsuarioPage(currentUser: currentUser),
-              );
-            case '/notificacoes':
-              final Usuario currentUser = settings.arguments as Usuario;
-              return MaterialPageRoute(
-                builder: (context) =>
-                    NotificacoesPage(currentUser: currentUser),
               );
             case '/registro':
               return MaterialPageRoute(

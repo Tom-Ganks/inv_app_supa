@@ -8,9 +8,9 @@ class NotificacoesRepository {
     final response = await _client
         .from('notificacoes')
         .insert(notificacao.toMap())
-        .select()
+        .select('id_notificacao')
         .single();
-    return response['id'];
+    return response['id_notificacao'] as int;
   }
 
   Future<List<Notificacao>> fetchAll() async {
@@ -41,7 +41,7 @@ class NotificacoesRepository {
       'observacao': observacao,
       'quantidade_aprovada': quantidadeAprovada,
       'lida': true,
-    }).eq('id', id);
+    }).eq('id_notificacao', id); // Alterado para o nome correto
     return id;
   }
 

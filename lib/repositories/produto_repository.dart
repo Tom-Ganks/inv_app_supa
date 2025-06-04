@@ -5,11 +5,12 @@ class ProdutoRepository {
   final SupabaseClient _client = Supabase.instance.client;
 
   Future<int?> insert(Produto produto) async {
-    final response = await _client
-        .from('produtos')
-        .insert(produto.toMap())
-        .select()
-        .single();
+    final Map<String, dynamic> dados = produto.toMap();
+    dados.remove('id_produtos');
+
+    final response =
+        await _client.from('produtos').insert(dados).select().single();
+
     return response['id_produtos'] as int?;
   }
 
@@ -22,6 +23,25 @@ class ProdutoRepository {
     final response =
         await _client.from('produtos').select().lte('saldo', 5).order('nome');
     return (response as List).map((json) => Produto.fromMap(json)).toList();
+  }
+
+  Future<void> updateSaldo(int idProduto, int quantidade, String tipo) async {
+    final produto = await _client
+        .from('produtos')
+        .select()
+        .eq('id_produtos', idProduto)
+        .single();
+
+    int novoSaldo = produto['saldo'] as int;
+    if (tipo == 'saida') {
+      novoSaldo -= quantidade;
+    } else if (tipo == 'entrada') {
+      novoSaldo += quantidade;
+    }
+
+    await _client
+        .from('produtos')
+        .update({'saldo': novoSaldo}).eq('id_produtos', idProduto);
   }
 
   Future<Produto?> fetchByName(String nome) async {

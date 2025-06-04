@@ -151,6 +151,7 @@ class _SolicitacaoPageState extends State<SolicitacaoPage> {
     if (quantidade != null) {
       // Create and save notification
       final notificacao = Notificacao(
+        id_notificacao: null,
         solicitante_nome: widget.currentUser.nome,
         solicitante_cargo: widget.currentUser.cargo.toString(),
         produto_nome: produto.nome,
