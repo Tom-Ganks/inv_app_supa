@@ -9,8 +9,7 @@ class MovimentacaoRepository {
   Future<int?> insert(Movimentacao movimentacao) async {
     try {
       final response = await _client
-          .from(
-              'movimentacao') // Changed from 'movimentacoes' to 'movimentacao'
+          .from('movimentacao')
           .insert(movimentacao.toMap())
           .select()
           .single();

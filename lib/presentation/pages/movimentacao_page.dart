@@ -69,7 +69,7 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
     }
 
     final quantidade = int.tryParse(quantidadeController.text);
-    if (quantidade! <= 0) {
+    if (quantidade == null || quantidade <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Por favor, insira uma quantidade válida'),
@@ -80,23 +80,27 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
     }
 
     try {
+      // First create the movement record
       final movimentacao = Movimentacao(
-        id_produtos: widget.produto.id_produtos!, // Use o ID do produto clicado
+        id_produtos: widget.produto.id_produtos!,
         id_turma: widget.currentUser.turma,
         id_usuarios: widget.currentUser.id_usuarios!,
         data_saida: DateTime.now(),
         quantidade: quantidade,
         tipo: tipoMovimentacao,
-        observacao: '',
+        observacao: 'Registrado manualmente',
       );
 
       await _repository.insert(movimentacao);
 
+      // Then update the product balance without creating another movement record
       final produtoRepository = ProdutoRepository();
       await produtoRepository.updateSaldo(
         widget.produto.id_produtos!,
         quantidade,
         tipoMovimentacao,
+        userId: widget.currentUser.id_usuarios,
+        skipMovementRecord: true, // This prevents duplicate records
       );
 
       quantidadeController.clear();

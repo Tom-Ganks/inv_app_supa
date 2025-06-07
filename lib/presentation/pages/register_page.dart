@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/usuario_model.dart';
 import '../../repositories/usuario_repository.dart';
 import 'login_page.dart';
@@ -23,8 +24,9 @@ class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController confirmasenhaController = TextEditingController();
   final TextEditingController cpfController = TextEditingController();
 
-  int selectedCargo = 3; // Default to Staff (1), Admin is 2
+  int selectedCargo = 3; // Default to Instrutor (3), Admin is 2
   File? _foto;
+  bool isLoading = false;
 
   Future<void> _selecionarFoto() async {
     try {
@@ -54,49 +56,70 @@ class _RegisterPageState extends State<RegisterPage> {
 
   Future<void> registerUsuario() async {
     if (_formKey.currentState?.validate() ?? false) {
-      // try {
-      final usuario = Usuario(
-        nome: nomeController.text,
-        email: emailController.text,
-        telefone: telefoneController.text,
-        endereco: enderecoController.text,
-        cargo: selectedCargo,
-        senha: senhaController.text,
-        status: selectedCargo == 2 ? 'admin' : 'user',
-        cpf: cpfController.text.replaceAll(RegExp(r'[^\d]'), ''),
-      );
+      setState(() {
+        isLoading = true;
+      });
 
-      if (_foto != null) {
-        // Handle photo upload here
-        // You might want to save it to a specific directory and store the path
-        final String photoPath = _foto!.path;
-        // Update the usuario model with the photo path
-        usuario.foto = photoPath;
+      try {
+        // First, create user in Supabase Auth
+        final authResponse = await Supabase.instance.client.auth.signUp(
+          email: emailController.text,
+          password: senhaController.text,
+        );
+
+        if (authResponse.user != null) {
+          // Then create user in our custom table
+          final usuario = Usuario(
+            nome: nomeController.text,
+            email: emailController.text,
+            telefone: telefoneController.text,
+            endereco: enderecoController.text,
+            cargo: selectedCargo,
+            senha: senhaController.text, // You might want to hash this
+            status: selectedCargo == 2 ? 'admin' : 'user',
+            cpf: cpfController.text.replaceAll(RegExp(r'[^\d]'), ''),
+          );
+
+          if (_foto != null) {
+            // Handle photo upload here
+            final String photoPath = _foto!.path;
+            usuario.foto = photoPath;
+          }
+
+          await UsuarioRepository().insert(usuario);
+
+          setState(() {
+            isLoading = false;
+          });
+
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  'Usuário registrado com sucesso! Verifique seu email para confirmar a conta.'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 5),
+            ),
+          );
+
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const LoginPage()),
+          );
+        }
+      } catch (e) {
+        setState(() {
+          isLoading = false;
+        });
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao registrar usuário: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
-
-      await UsuarioRepository().insert(usuario);
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Usuário registrado com sucesso!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginPage()),
-      );
-      // } catch (e) {
-      //   if (!mounted) return;
-      //   ScaffoldMessenger.of(context).showSnackBar(
-      //     SnackBar(
-      //       content: Text('Erro ao registrar usuário: $e'),
-      //       backgroundColor: Colors.red,
-      //     ),
-      //   );
-      // }
     }
   }
 
@@ -162,7 +185,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.1),
+                          color: Colors.black.withOpacity(0.1),
                           blurRadius: 10,
                           offset: const Offset(0, 4),
                         ),
@@ -181,6 +204,17 @@ class _RegisterPageState extends State<RegisterPage> {
                           label: 'E-mail',
                           icon: Icons.email,
                           keyboardType: TextInputType.emailAddress,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Por favor, preencha este campo';
+                            }
+                            final emailRegex =
+                                RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+                            if (!emailRegex.hasMatch(value)) {
+                              return 'Por favor, insira um email válido';
+                            }
+                            return null;
+                          },
                         ),
                         _buildTextField(
                           controller: telefoneController,
@@ -245,6 +279,15 @@ class _RegisterPageState extends State<RegisterPage> {
                           label: 'Senha',
                           icon: Icons.lock,
                           obscureText: true,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Por favor, preencha este campo';
+                            }
+                            if (value.length < 6) {
+                              return 'A senha deve ter pelo menos 6 caracteres';
+                            }
+                            return null;
+                          },
                         ),
                         _buildTextField(
                           controller: confirmasenhaController,
@@ -265,7 +308,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: registerUsuario,
+                      onPressed: isLoading ? null : registerUsuario,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.orange,
                         padding: const EdgeInsets.symmetric(vertical: 16),
@@ -273,13 +316,15 @@ class _RegisterPageState extends State<RegisterPage> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text(
-                        'Criar Conta',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      child: isLoading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text(
+                              'Criar Conta',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                     ),
                   ),
                   const SizedBox(height: 16),

@@ -41,12 +41,12 @@ class NotificacoesRepository {
       'observacao': observacao,
       'quantidade_aprovada': quantidadeAprovada,
       'lida': true,
-    }).eq('id_notificacao', id); // Alterado para o nome correto
+    }).eq('id_notificacao', id);
     return id;
   }
 
   Future<void> deleteAll() async {
-    await _client.from('notificacoes').delete().neq('id', 0);
+    await _client.from('notificacoes').delete().neq('id_notificacao', 0);
   }
 
   Future<int> getUnreadCount() async {

@@ -110,7 +110,7 @@ class _ProgressoPageState extends State<ProgressoPage> {
       text: solicitacao.quantidade_aprovada?.toString() ?? '',
     );
     final observacaoController = TextEditingController(
-      text: solicitacao.observacao,
+      text: solicitacao.observacao ?? '',
     );
 
     final result = await showDialog<Map<String, dynamic>>(
@@ -205,7 +205,9 @@ class _ProgressoPageState extends State<ProgressoPage> {
       try {
         final int novaQuantidade = result['status'] == 'aprovado'
             ? solicitacao.quantidade
-            : (result['quantidadeAprovada'] ?? 0);
+            : (result['status'] == 'parcial'
+                ? (int.tryParse(quantidadeController.text) ?? 0)
+                : 0);
 
         await _repository.updateStatus(
           solicitacao.id_notificacao!,
@@ -215,11 +217,11 @@ class _ProgressoPageState extends State<ProgressoPage> {
         );
 
         if (result['status'] == 'aprovado' || result['status'] == 'parcial') {
-          final int novoSaldo = produto.saldo - novaQuantidade;
           await ProdutoRepository().updateSaldo(
             produto.id_produtos!,
-            novoSaldo,
+            novaQuantidade,
             'saida',
+            userId: widget.currentUser.id_usuarios, // Pass the user ID
           );
         }
 
